@@ -78,6 +78,18 @@ class Server(BaseHTTPRequestHandler):
         byteResp = bytes(response, 'utf-8')
         self.wfile.write(byteResp)
         
+    def return_post(self, cur, con, cmd):
+        cur.execute('select uuid, key, item, important, time from todoApp')
+        con.commit();
+        listdict = []
+        items = cur.fetchall()
+        for item in items:
+          print(item)
+          d = {'uuid' : item[0],  'cmd' : cmd, 'key' : item[1], 'item' : item[2], 'important' : item[3], 'time' : item[4]}
+          listdict.append(d)
+        self._set_headers()
+        self.wfile.write(bytes(json.dumps(listdict), 'utf-8'))
+
     # POST echoes the message adding a JSON field
     def do_POST(self):
         if self.path == '/todo':
@@ -96,11 +108,14 @@ class Server(BaseHTTPRequestHandler):
 
           print('jsonItem=>', jsonItem)
 
-          mydb = '/Users/aaa/myfile/bitbucket/database/test_sqlite3.db'
+          # mydb = '/Users/aaa/myfile/bitbucket/database/test_sqlite3.db'
+          mydb = '/Users/aaa/myfile/bitbucket/database/mytest.db'
           con = sqlite3.connect(mydb)
           cur = con.cursor()
 
-          cur.execute('select * from todoApp')
+          exeStr = f'SELECT * FROM todoApp'
+          cur.execute(exeStr)
+          # cur.execute('select * from todoApp')
           users = cur.fetchall()
 
           ''' 
@@ -116,8 +131,8 @@ class Server(BaseHTTPRequestHandler):
           print("todoCmd cmd: strip=>", todoCmd.strip())
           if todoCmd.strip() == 'add':
             cur.execute('''
-              INSERT INTO todoApp (uuid, key, item) VALUES(?,?,?)
-              ''', (jsonItem['uuid'], jsonItem['key'], jsonItem['item']))
+              INSERT INTO todoApp (uuid, key, item, important, time) VALUES(?,?,?,?,?)
+              ''', (jsonItem['uuid'], jsonItem['key'], jsonItem['item'], jsonItem['important'], jsonItem['time']))
             con.commit();
             self._set_headers()
             replyJson = {'reply' : 'OK', 'cmd' : 'add'}
@@ -128,9 +143,11 @@ class Server(BaseHTTPRequestHandler):
               DELETE FROM todoApp WHERE id > 0 
               ''')
             con.commit();
-            replyJson = {'reply' : 'OK', 'cmd' : 'deleteall'}
-            self._set_headers()
-            self.wfile.write(bytes(json.dumps(replyJson), 'utf-8'))
+            
+            self.return_post(cur, con, 'list')
+            # replyJson = {'reply' : 'OK', 'cmd' : 'deleteall'}
+            #  self._set_headers()
+            # self.wfile.write(bytes(json.dumps(replyJson), 'utf-8'))
           elif todoCmd == 'deleteByUUID':
             print("deleteByUUID todoApp items")
             cur.execute('''
@@ -140,34 +157,8 @@ class Server(BaseHTTPRequestHandler):
             replyJson = {'reply' : 'OK', 'cmd' : 'deleteByUUID'}
             self.wfile.write(bytes(json.dumps(replyJson), 'utf-8'))
           elif todoCmd == 'list':
-            cur.execute('select uuid, key, item from todoApp')
-            con.commit();
-            listdict = []
-            items = cur.fetchall()
-            for item in items:
-              print(item)
-              d = {'uuid' : item[0],  'key' : item[1], 'cmd' : 'mycmd', 'item' : item[2]}
-              # d = {'uuid' : 'abc',  'key' : 's', 'cmd' : 'mycmd', 'item' : 'myitem'}
-              listdict.append(d)
-            # dictx = dict(items)
-            # jsonStr = json.dumps(dictx)
-            # print(dictx)
-            # replyJson = {'reply' : 'OK', 'cmd' : 'list'}
-            replyJson = [
-                    {
-                      'age' : 3,
-                      'name' : 'David'
-                    },
-                    {
-                      'age' : 40,
-                      'name' : 'Terry'
-                    }
-                    ] 
-
-            self._set_headers()
-            # self.wfile.write(bytes(json.dumps(replyJson), 'utf-8'))
-            self.wfile.write(bytes(json.dumps(listdict), 'utf-8'))
-
+            self.return_post(cur, con, 'list')
+            
           print("uuid:", jsonItem['uuid'])
           print("key:", jsonItem['key'])
           print("item:", jsonItem['item'])
@@ -179,7 +170,7 @@ class Server(BaseHTTPRequestHandler):
           print("Unsupported: route => ", self.path)
         
 def run(server_class=HTTPServer, handler_class=Server, port=8000):
-    server_address = ('', port)
+    server_address = ('127.0.0.1', port)
     httpd = server_class(server_address, handler_class)
     
     print('Starting httpd on port %d...' % port)
